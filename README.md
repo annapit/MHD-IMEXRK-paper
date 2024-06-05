@@ -13,7 +13,7 @@ The code in this repository can be tested using a codespace. Press the green Cod
 
     source activate ./venv
 
-in the terminal of the codespace after the installation is finished. You may then run the program using
+in the terminal of the codespace after the installation is finished. You may then run one of the programs using
 
-    python BurgersForward.py
+    python Burgers_G_PG.py
 
