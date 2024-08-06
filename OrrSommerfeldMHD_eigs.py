@@ -19,8 +19,8 @@ except ImportError:
 x = sp.Symbol('x', real=True)
 
 class OrrSommerfeldMHD:
-    def __init__(self, alfa=1., Re=8000., Rem=0.1, By=1., N=80, quad='GC', test='G', trial='G', **kwargs):
-        kwargs.update(dict(alfa=alfa, Re=Re, Rem=Rem, By=By, N=N, quad=quad, test=test, trial=trial))
+    def __init__(self, alpha=1., Re=8000., Rem=0.1, By=1., N=80, quad='GC', test='G', trial='G', **kwargs):
+        kwargs.update(dict(alpha=alpha, Re=Re, Rem=Rem, By=By, N=N, quad=quad, test=test, trial=trial))
         vars(self).update(kwargs)
         self.x, self.w = None, None
 
@@ -43,26 +43,20 @@ class OrrSommerfeldMHD:
                 Print information or not
         """
         nx, eigval = self.get_eigval(eigval, eigvals, verbose)
-        if self.trial == 'G':
-            SU = FunctionSpace(self.N, 'C', bc=(0, 0, 0, 0), quad=self.quad, dtype='D')
-            SB = FunctionSpace(self.N, 'C', bc=(0, 0), quad=self.quad, dtype='D')
-        else:
-            SU = FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype='D')
-            SB = FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype='D')
-        SB = FunctionSpace(self.N, 'C', bc=(0, 0, 0, 0), quad=self.quad, dtype='D')
-        phi_hat_u = Function(SU)
+        SB, SD = self.get_trialspaces(self.trial, dtype='D')
+        phi_hat_u = Function(SB)
         phi_hat_u[:-4] = np.squeeze(eigvectors[:self.N-4, nx])
         phi_u = phi_hat_u.eval(y)
         dphidy_u = Dx(phi_hat_u, 0, 1).eval(y)
-        phi_hat_b = Function(SB)
+        phi_hat_b = Function(SD)
         phi_hat_b[:-2] = np.squeeze(eigvectors[self.N-4:, nx])
         phi_b = phi_hat_b.eval(y)
         dphidy_b = Dx(phi_hat_b, 0, 1).eval(y)
-        return eigval, phi_u, dphidy_u, phi_b, dphidy_b
+        return eigval, phi_u, dphidy_u, phi_b, dphidy_b 
 
     def get_trialspaces(self, trial, dtype='d'):
         if trial == 'G':
-            return (FunctionSpace(self.N, 'C', basis='ShenBiharmonic', quad=self.quad, dtype=dtype),
+            return (FunctionSpace(self.N, 'C', basis='ShenBiharmonic', quad=self.quad, dtype=dtype),#,FunctionSpace(self.N, 'C', basis='ShenBiharmonic', quad=self.quad, dtype=dtype))
                     FunctionSpace(self.N, 'C', basis='ShenDirichlet', quad=self.quad, dtype=dtype))
         return (FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype=dtype),
                 FunctionSpace(self.N, 'C', basis='Phi1', quad=self.quad, dtype=dtype))
@@ -81,7 +75,7 @@ class OrrSommerfeldMHD:
 
         Re = self.Re
         Rem = self.Rem
-        a = self.alfa
+        a = self.alpha
         By = self.By
         B1 = inner(-1j*Re*a*(Dx(u, 0, 2) - a**2*u), v)
         B4 = inner(-1j*a*Rem*b, q)
@@ -138,7 +132,7 @@ class OrrSommerfeldMHD:
         """
         if verbose:
             print('Solving the Orr-Sommerfeld and induction eigenvalue problem...')
-            print('Re = '+str(self.Re)+' and alfa = '+str(self.alfa))
+            print('Re = '+str(self.Re)+' and alpha = '+str(self.alpha))
         A, B = self.assemble()
         return eig(A, B)
 
@@ -176,7 +170,7 @@ if __name__ == '__main__':
                         help='Reynolds number')
     parser.add_argument('--Rem', default=0.1, type=float,
                         help='Magnetic Reynolds number')
-    parser.add_argument('--alfa', default=1.0, type=float,
+    parser.add_argument('--alpha', default=1.0, type=float,
                         help='Parameter')
     parser.add_argument('--By', default=0.2, type=float,
                         help='Parameter')
@@ -197,7 +191,7 @@ if __name__ == '__main__':
 
     if args.plot:
         plt.figure()
-        evi = evals*z.alfa
+        evi = evals*z.alpha
         plt.plot(evi.imag, evi.real, 'o')
         plt.axis([-10, 0.1, 0, 1])
         plt.show()
