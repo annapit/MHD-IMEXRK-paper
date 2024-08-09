@@ -24,28 +24,26 @@ class OrrSommerfeldMHD(KMM):
             f.write(f"{'Time'::^11} {'Exact':^11} {'u_error':^11} {'u_error_exact':^11} {'u_norm':^11} {'u_div':^11} {'B_error':^11} {'B_error_exact':^11} {'B_norm':^11} {'B_div':^11} {'u_norm_x':^11} {'u_norm_y':^11} {'B_norm_x':^11} {'B_norm_y':^11} {'u_acc':^11} {'B_acc':^11}\n")
 
         # New spaces and Functions used by MHD
-        self.BX = FunctionSpace(N[0], family, bc=(self.B_0[0], self.B_0[0]), domain=domain[0])
-        self.BY = FunctionSpace(N[0], family, bc=(self.B_0[1],0,self.B_0[1],0), domain=domain[0])#bc={'left': {'D': self.B_0[1], 'N': 0}, 'right': {'D': self.B_0[1], 'N': 0}}, domain=domain[0])#bc=(self.B_0[1],0,self.B_0[1],0), domain=domain[0])
+        self.BX = FunctionSpace(N[0], family, bc=(self.B_0[0], 0, self.B_0[0],0), domain=domain[0])
+        self.BY = FunctionSpace(N[0], family, bc={'left': {'D': self.B_0[1], 'N': 0}, 'right': {'D': self.B_0[1], 'N': 0}}, domain=domain[0])#bc={'left': {'D': self.B_0[1], 'N': 0}, 'right': {'D': self.B_0[1], 'N': 0}}, domain=domain[0])#bc=(self.B_0[1],0,self.B_0[1],0), domain=domain[0])
         self.TBX = TensorProductSpace(comm, (self.BX, self.F1), collapse_fourier=False, slab=True, modify_spaces_inplace=True)
         self.TBY = TensorProductSpace(comm, (self.BY, self.F1), collapse_fourier=False, slab=True, modify_spaces_inplace=True)
         self.VB = VectorSpace([self.TBX, self.TBY])      # B solution
         self.B_ = Function(self.VB)
-        self.NB_ = Function(self.VB)      # Convection nabla(B) dot B
-        self.NBu_ = Function(self.BD)     # Convection nabla(B) dot u
+        self.NB_ = Function(self.CD)      # Convection nabla(B) dot B
+        self.NBu_ = Function(self.CD)     # Convection nabla(B) dot u
         self.NuB_ = Function(self.CD)     # Convection nabla(u) dot B
         self.Bb = Array(self.VB)
-
-        # Padded space for dealiasing
-        self.TBXp = self.TC.get_dealiased(padding_factor)
-        self.TBYp = self.TC.get_dealiased(padding_factor)
+        self.BY00 = FunctionSpace(N[0], family,bc={'left': {'D': self.B_0[1], 'N': 0}, 'right': {'D': self.B_0[1], 'N': 0}}, domain=domain[0])
         # Classes for fast projections used by convection
-        self.dB0dx = Project(Dx(self.B_[0], 0, 1), self.TBY)
-        self.dB0dy = Project(Dx(self.B_[0], 1, 1), self.TC)
+        self.dB0dx = Project(Dx(self.B_[0], 0, 1), self.TB)
+        self.dB0dy = Project(Dx(self.B_[0], 1, 1), self.TD)
         self.dB1dx = Project(Dx(self.B_[1], 0, 1), self.TC)
-        self.dB1dy = Project(Dx(self.B_[1], 1, 1), self.TC)
+        self.dB1dy = Project(Dx(self.B_[1], 1, 1), self.TD)
         self.divb = Project(div(self.B_), self.TC)
 
         self.work_b = CachedArrayDict()
+        self.b00 = Function(self.BY00)   # For solving 1D problem for Fourier wavenumber 0, 0
 
         test_u = self.TB.get_testspace(self.method)    
         test_bx = self.TBX.get_testspace(self.method)
@@ -81,13 +79,13 @@ class OrrSommerfeldMHD(KMM):
                                    solver=sol2,
                                    ),
 
-            'B1': self.PDE(tby,
-                                   self.B_[1],
-                                   lambda f: (1/self.Rem)*div(grad(f)),
-                                   [Expr(self.NBu_[1]), -Expr(self.NuB_[1])],
-                                   dt=self.dt,
-                                   solver=sol2,
-                                   )
+            # 'B1': self.PDE(tby,
+            #                        self.B_[1],
+            #                        lambda f: (1/self.Rem)*div(grad(f)),
+            #                        [Expr(self.NBu_[1]), -Expr(self.NuB_[1])],
+            #                        dt=self.dt,
+            #                        solver=sol2,
+            #                        )
 
         }
 
@@ -96,19 +94,33 @@ class OrrSommerfeldMHD(KMM):
             v0 = TestFunction(test_v0)
             self.h1 = Function(self.D00)  # Copy from H_[1, :, 0, 0] (cannot use view since not contiguous)
             self.b1 = Function(self.D00)  # Copy from NB_[1, :, 0, 0] (cannot use view since not contiguous)
-            source = Array(test_v0)
+
+            test_b0 = self.BY00.get_testspace(self.method)
+            b0_tf = TestFunction(test_b0)
+            self.nbu1 = Function(self.BY00)  # Copy from NBu_[0, :, 0, 0] (cannot use view since not contiguous)
+            self.nub1 = Function(self.BY00)  # Copy from NuB_[0, :, 0, 0] (cannot use view since not contiguous)
+
+            source = Array(self.C00)
             source[:] = -self.dpdy          # dpdy set by subclass
             if self.method == "G":
                 sol = la.Solver#chebyshev.la.Helmholtz if self.B0.family() == 'chebyshev' else la.Solver
             elif self.method == "PG":
                 sol = la.Solver
             
-            self.pdes1d['v0'] =  self.PDE(v0,
+            self.pdes1d ={'v0':  self.PDE(v0,
                           self.v00,
                           lambda f: 1/self.Re*div(grad(f)),
                           [-Expr(self.h1), Expr(self.b1), source],
                           dt=self.dt,
+                          solver=sol),
+                          
+                'b0': self.PDE(b0_tf,
+                          self.b00,
+                          lambda f: 1/self.Rem*div(grad(f)),
+                          [Expr(self.nbu1), -Expr(self.nub1)],
+                          dt=self.dt,
                           solver=sol)
+            }
             
 
 
@@ -133,23 +145,37 @@ class OrrSommerfeldMHD(KMM):
         dvdxp = self.dvdx().backward(padding_factor=self.padding_factor).v
         dvdyp = self.dvdy().backward(padding_factor=self.padding_factor).v
 
-        BB[0] = self.TBXp.forward(Bp[0]*dB0dxp+Bp[1]*dB0dyp, BB[0])
-        BB[1] = self.TBYp.forward(Bp[0]*dB1dxp+Bp[1]*dB1dyp, BB[1])
+        BB[0] = self.TDp.forward(Bp[0]*dB0dxp+Bp[1]*dB0dyp, BB[0])
+        BB[1] = self.TDp.forward(Bp[0]*dB1dxp+Bp[1]*dB1dyp, BB[1])
         self.NB_.mask_nyquist(self.mask)
         uB[0] = self.TDp.forward(up[0]*dB0dxp+up[1]*dB0dyp, uB[0])
         uB[1] = self.TDp.forward(up[0]*dB1dxp+up[1]*dB1dyp, uB[1])
         self.NuB_.mask_nyquist(self.mask)
-        Bu[0] = self.TBXp.forward(Bp[0]*dudxp+Bp[1]*dudyp, Bu[0])
-        Bu[1] = self.TBYp.forward(Bp[0]*dvdxp+Bp[1]*dvdyp, Bu[1])
+        Bu[0] = self.TDp.forward(Bp[0]*dudxp+Bp[1]*dudyp, Bu[0])
+        Bu[1] = self.TDp.forward(Bp[0]*dvdxp+Bp[1]*dvdyp, Bu[1])
         self.NBu_.mask_nyquist(self.mask)
-
-    def prepare_step(self, rk):
-        self.convection(rk)     
 
     def compute_v(self, rk):
         if comm.Get_rank() == 0:
             self.b1[:] = self.NB_[1, :, 0].real
-        KMM.compute_v(self, rk)
+        KMM.compute_v(self, rk)      
+
+        B = self.B_.v
+
+        if comm.Get_rank() == 0:
+            self.b00[:] = self.B_[1, :, 0].real
+            self.nub1[:] = self.NuB_[1, :, 0].real
+            self.nbu1[:] = self.NBu_[1, :, 0].real
+
+        # Find magnetic field, velocity components Bx, v from div. constraint
+        self.B_[1] = 1j*self.dB0dx()/self.K[1]
+        
+
+        if comm.Get_rank() == 0:
+            self.pdes1d['b0'].compute_rhs(rk)
+            self.B_[1, :, 0] = self.pdes1d['b0'].solve_step(rk)
+
+
 
     def initialize(self, from_checkpoint=False):
         if from_checkpoint:
@@ -161,8 +187,6 @@ class OrrSommerfeldMHD(KMM):
         self.initOS(MOS, eigvals, eigvectors, self.ub, self.Bb)
         self.u_ = self.ub.forward(self.u_)
         self.B_ = self.Bb.forward(self.B_)
-        self.u_.mask_nyquist(self.mask)
-        self.B_.mask_nyquist(self.mask)
         self.ub = self.u_.backward(self.ub)
         self.Bb = self.B_.backward(self.Bb)
         # Compute convection from data in context (i.e., context.U_hat and context.g)
@@ -237,7 +261,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='MHD2d_PG_G.py')
     parser.add_argument('--N', type=int, nargs=2, default=[128, 32], help='Grid size')
     parser.add_argument('--alpha', type=float, default=1., help='Alpha value')
-    parser.add_argument('--Re', type=float, default=6000., help='Re value')
+    parser.add_argument('--Re', type=float, default=10000., help='Re value')
     parser.add_argument('--Rem', type=float, default=0.1, help='Rem value')
     parser.add_argument('--B_0', type=float, nargs=2, default=[0, 0.1], help='B_0 value')
     parser.add_argument('--method', type=str, default='G', help='Method')
@@ -245,7 +269,7 @@ if __name__ == '__main__':
     parser.add_argument('--conv', type=int, default=0, help='Convection value')
     parser.add_argument('--modplot', type=int, default=100, help='Modplot value')
     parser.add_argument('--modsave', type=int, default=-1, help='Modsave value')
-    parser.add_argument('--moderror', type=int, default=10, help='Moderror value')
+    #parser.add_argument('--moderror', type=int, default=10, help='Moderror value')
     parser.add_argument('--family', type=str, default='C', help='Family')
     parser.add_argument('--checkpoint', type=int, default=10000000, help='Checkpoint value')
     parser.add_argument('--padding_factor', type=float, nargs=2, default=[1, 1.5], help='Padding factor')
@@ -265,7 +289,7 @@ if __name__ == '__main__':
         'conv': args.conv,
         'modplot': args.modplot,
         'modsave': args.modsave,
-        'moderror': args.moderror,
+        'moderror': int(1/(10*args.dt)),
         'family': args.family,
         'checkpoint': args.checkpoint,
         'padding_factor': tuple(args.padding_factor),

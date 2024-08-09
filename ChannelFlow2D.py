@@ -92,10 +92,10 @@ class KMM:
         self.TD = TensorProductSpace(comm, (self.D0, self.F1), modify_spaces_inplace=True) # Streamwise velocity
         self.TC = TensorProductSpace(comm, (self.C0, self.F1), modify_spaces_inplace=True) # No bc
         self.BD = VectorSpace([self.TB, self.TD])  # Velocity vector space
-        self.CD = VectorSpace(self.TC)             # Dirichlet vector space
+        self.CD = VectorSpace(self.TD)             # Dirichlet vector space
 
         # Padded space for dealiasing
-        self.TDp = self.TC.get_dealiased(padding_factor)
+        self.TDp = self.TD.get_dealiased(padding_factor)
 
         self.u_ = Function(self.BD)      # Velocity vector solution
         self.H_ = Function(self.CD)      # convection
@@ -112,9 +112,9 @@ class KMM:
         # Classes for fast projections. All are not used except if self.conv=0
         self.dudx = Project(Dx(self.u_[0], 0, 1), self.TD)
         if self.conv == 0:
-            self.dudy = Project(Dx(self.u_[0], 1, 1), self.TC)
+            self.dudy = Project(Dx(self.u_[0], 1, 1), self.TB)
             self.dvdx = Project(Dx(self.u_[1], 0, 1), self.TC)
-            self.dvdy = Project(Dx(self.u_[1], 1, 1), self.TC)
+            self.dvdy = Project(Dx(self.u_[1], 1, 1), self.TD)
 
         self.curl = Project(curl(self.u_), self.TC)
         self.divu = Project(div(self.u_), self.TD)
@@ -155,7 +155,7 @@ class KMM:
         if comm.Get_rank() == 0:
             test_v0 = self.D00.get_testspace(self.method)
             v0 = TestFunction(test_v0)
-            self.h1 = Function(self.C00)  # Copy from H_[1, :, 0, 0] (cannot use view since not contiguous)
+            self.h1 = Function(self.D00)  # Copy from H_[1, :, 0, 0] (cannot use view since not contiguous)
             source = Array(self.C00)
             source[:] = -self.dpdy        # dpdy set by subclass
             if self.method == "G":
@@ -172,6 +172,7 @@ class KMM:
                           latex=r"\frac{\partial v}{\partial t} = \nu \frac{\partial^2 v}{\partial x^2} - N_y - \frac{\partial p}{\partial y}"),
             }
     
+
     def convection(self, rk):
         H = self.H_.v
         self.up = self.u_.backward(padding_factor=self.padding_factor)

@@ -43,23 +43,29 @@ class OrrSommerfeldMHD:
                 Print information or not
         """
         nx, eigval = self.get_eigval(eigval, eigvals, verbose)
+        # if self.trial == 'G':
+        #     SB = FunctionSpace(self.N, 'C', bc=(0, 0, 0, 0), quad=self.quad, dtype="D")
+        #     SD = FunctionSpace(self.N, 'C', bc=(0, 0,0,0), quad=self.quad, dtype="D")
+        # else:
+        #     SB = FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype="D")
+        #     SD = FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype="D")
         SB, SD = self.get_trialspaces(self.trial, dtype='D')
         phi_hat_u = Function(SB)
         phi_hat_u[:-4] = np.squeeze(eigvectors[:self.N-4, nx])
         phi_u = phi_hat_u.eval(y)
         dphidy_u = Dx(phi_hat_u, 0, 1).eval(y)
         phi_hat_b = Function(SD)
-        phi_hat_b[:-2] = np.squeeze(eigvectors[self.N-4:, nx])
+        phi_hat_b[:-4] = np.squeeze(eigvectors[self.N-4:, nx])
         phi_b = phi_hat_b.eval(y)
         dphidy_b = Dx(phi_hat_b, 0, 1).eval(y)
         return eigval, phi_u, dphidy_u, phi_b, dphidy_b 
 
     def get_trialspaces(self, trial, dtype='d'):
         if trial == 'G':
-            return (FunctionSpace(self.N, 'C', basis='ShenBiharmonic', quad=self.quad, dtype=dtype),#,FunctionSpace(self.N, 'C', basis='ShenBiharmonic', quad=self.quad, dtype=dtype))
-                    FunctionSpace(self.N, 'C', basis='ShenDirichlet', quad=self.quad, dtype=dtype))
+            return (FunctionSpace(self.N, 'C', basis='ShenBiharmonic', quad=self.quad, dtype=dtype),
+                    FunctionSpace(self.N, 'C', basis='ShenBiharmonic', quad=self.quad, dtype=dtype))
         return (FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype=dtype),
-                FunctionSpace(self.N, 'C', basis='Phi1', quad=self.quad, dtype=dtype))
+                FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype=dtype))
 
     def get_testspaces(self, trial):
         return trial.get_testspace(self.test)
