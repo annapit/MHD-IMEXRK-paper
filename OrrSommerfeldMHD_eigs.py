@@ -43,12 +43,6 @@ class OrrSommerfeldMHD:
                 Print information or not
         """
         nx, eigval = self.get_eigval(eigval, eigvals, verbose)
-        # if self.trial == 'G':
-        #     SB = FunctionSpace(self.N, 'C', bc=(0, 0, 0, 0), quad=self.quad, dtype="D")
-        #     SD = FunctionSpace(self.N, 'C', bc=(0, 0,0,0), quad=self.quad, dtype="D")
-        # else:
-        #     SB = FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype="D")
-        #     SD = FunctionSpace(self.N, 'C', basis='Phi2', quad=self.quad, dtype="D")
         SB, SD = self.get_trialspaces(self.trial, dtype='D')
         phi_hat_u = Function(SB)
         phi_hat_u[:-4] = np.squeeze(eigvectors[:self.N-4, nx])

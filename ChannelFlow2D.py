@@ -120,21 +120,12 @@ class KMM:
         self.divu = Project(div(self.u_), self.TD)
         self.solP = None # For computing pressure
 
-        # File for storing the results
-        #self.file_u = ShenfunFile('_'.join((filename, 'U')), self.BD, backend='hdf5', mode='w', mesh='uniform')
-
-        # Create a checkpoint file used to restart simulations
-        #self.checkpoint = Checkpoint(filename, checkevery=checkpoint, data={'0': {'U': [self.u_]}})
-
         # set up equations
         test_u = self.TB.get_testspace(self.method)       
         v = TestFunction(test_u)
 
         # Chebyshev matrices are not sparse, so need a tailored solver. Legendre has simply 5 nonzero diagonals and can use generic solvers.
-        if self.method == "G":
-            sol1 = la.SolverGeneric1ND#chebyshev.la.Biharmonic if self.B0.family() == 'chebyshev' else la.SolverGeneric1ND
-        elif self.method == "PG":
-            sol1 = la.SolverGeneric1ND
+        sol1 = la.SolverGeneric1ND
 
         self.pdes = {
 
@@ -158,10 +149,8 @@ class KMM:
             self.h1 = Function(self.D00)  # Copy from H_[1, :, 0, 0] (cannot use view since not contiguous)
             source = Array(self.C00)
             source[:] = -self.dpdy        # dpdy set by subclass
-            if self.method == "G":
-                sol = la.Solver#chebyshev.la.Helmholtz if self.B0.family() == 'chebyshev' else la.Solver
-            elif self.method == "PG":
-                sol = la.Solver
+            sol = la.Solver
+            print(self.method)
             self.pdes1d = {
                 'v0': PDE(v0,
                           self.v00,
@@ -271,16 +260,16 @@ class KMM:
     def solve(self, t=0, tstep=0, end_time=1000):
         self.assemble()
         while t < end_time-1e-8:
-            for rk in range(self.PDE.steps()):
-                self.prepare_step(rk)
-                for eq in self.pdes.values():
-                    eq.compute_rhs(rk)
-                for eq in self.pdes.values():
-                    eq.solve_step(rk)
-                self.compute_v(rk)
-            t += self.dt
-            tstep += 1
-            self.update(t, tstep)
-            #self.checkpoint.update(t, tstep)
-            #if tstep % self.modsave == 0:
-            #    self.tofile(tstep)
+            if np.isnan(dx(self.divu().backward()*self.divu().backward())):
+                break
+            else:
+                for rk in range(self.PDE.steps()):
+                    self.prepare_step(rk)
+                    for eq in self.pdes.values():
+                        eq.compute_rhs(rk)
+                    for eq in self.pdes.values():
+                        eq.solve_step(rk)
+                    self.compute_v(rk)
+                t += self.dt
+                tstep += 1
+                self.update(t, tstep)

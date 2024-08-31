@@ -1,4 +1,4 @@
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from shenfun import *
 from ChannelFlow2D import KMM
 
@@ -44,8 +44,8 @@ class OrrSommerfeld(KMM):
         OS.eigval = eigval
         for j in range(U.shape[2]):
             y = X[1][0, j]
-            v = (1-x**2) + 1e-7*np.real(dphidy*np.exp(1j*self.alpha*(y-eigval*t)))
-            u = -1e-7*np.real(1j*self.alpha*phi*np.exp(1j*self.alpha*(y-eigval*t)))
+            v = (1-x**2) + 1e-5*np.real(dphidy*np.exp(1j*self.alpha*(y-eigval*t)))
+            u = -1e-5*np.real(1j*self.alpha*phi*np.exp(1j*self.alpha*(y-eigval*t)))
             U[0, :, j] = u
             U[1, :, j] = v
 
@@ -61,6 +61,7 @@ class OrrSommerfeld(KMM):
         return e1, e2, exact
 
     def init_plots(self):
+        '''
         ub = self.u_.backward(self.ub)
         self.im1 = 1
         if comm.Get_rank() == 0 and comm.Get_size() == 1:
@@ -78,8 +79,10 @@ class OrrSommerfeld(KMM):
             self.im3 = plt.quiver(self.X[1], self.X[0], ub[1]-(1-self.X[0]**2), ub[0])
             plt.colorbar(self.im3)
             plt.draw()
+        '''
 
     def plot(self, t, tstep):
+        '''
         if self.im1 is None and self.modplot > 0:
             self.init_plots()
 
@@ -93,7 +96,7 @@ class OrrSommerfeld(KMM):
                 self.im2.autoscale()
                 self.im3.set_UVC(ub[1]-(1-self.X[0]**2), ub[0])
                 plt.pause(1e-6)
-
+        '''
     def print_energy_and_divergence(self, t, tstep):
         if tstep % self.moderror == 0 and self.moderror > 0:
             if t==0:
@@ -116,15 +119,13 @@ if __name__ == '__main__':
     t0 = time()
     parser = argparse.ArgumentParser(description='OrrSommerfeld2D')
     parser.add_argument('--N', type=int, nargs=2, default=[128, 32], help='Number of quadrature points in each direction')
-    parser.add_argument('--Re', type=float, default=8000., help='Reynolds number')
+    parser.add_argument('--Re', type=float, default=10000., help='Reynolds number')
     parser.add_argument('--dt', type=float, default=0.01, help='Time step size')
-    parser.add_argument('--filename', type=str, default='KMM_OSX_128_32', help='Output file name')
     parser.add_argument('--conv', type=int, default=0, help='Convergence test')
     parser.add_argument('--alpha', type=float, default=1., help='Alpha value')
     parser.add_argument('--method', type=str, default='G', help='Method')
     parser.add_argument('--modplot', type=int, default=-1, help='Plotting frequency')
     parser.add_argument('--modsave', type=int, default=-1, help='Saving frequency')
-    parser.add_argument('--moderror', type=int, default=10, help='Error computation frequency')
     parser.add_argument('--family', type=str, default='C', help='Family type')
     parser.add_argument('--checkpoint', type=int, default=10000000, help='Checkpoint frequency')
     parser.add_argument('--padding_factor', type=float, default=1., help='Padding factor')
@@ -142,7 +143,7 @@ if __name__ == '__main__':
         'method': args.method,
         'modplot': args.modplot,
         'modsave': args.modsave,
-        'moderror': args.moderror,
+        'moderror': int(1/(10*args.dt)),
         'family': args.family,
         'checkpoint': args.checkpoint,
         'padding_factor': args.padding_factor,
@@ -152,7 +153,7 @@ if __name__ == '__main__':
     OS = True
     c = OrrSommerfeld(**d)
     t, tstep = c.initialize(from_checkpoint=False)
-    c.solve(t=t, tstep=tstep, end_time=1)
+    c.solve(t=t, tstep=tstep, end_time=100)
     print('Computing time %2.4f'%(time()-t0))
     with open(f"{d['filename']}.txt", "a") as f:
         f.write(f"Computing time {time()-t0}\n")
