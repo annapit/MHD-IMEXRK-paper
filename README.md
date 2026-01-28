@@ -1,7 +1,9 @@
 # MHD-IMEXRK-paper
 This repository contains the source code utilized to analyse implicit-explicit time integration schemes for a 2d magneto-hydrodynamic solver relevant to the research paper:
 
-- A. Piterskaya, M. Mortensen; "A comparison of implicit-explicit Runge-Kutta time integration schemes in numerical solvers developed based on the Galerkin and Petrov-Galerkin spectral methods for two-dimensional magneto-hydrodynamic problems", 2024
+- A. Piterskaya, M. Mortensen; "A comparison of implicit-explicit Runge-Kutta time integration schemes in numerical solvers developed based on the Galerkin and Petrov-Galerkin spectral methods for two-dimensional magneto-hydrodynamic problems". Results in Applied Mathematics, Volume 29, 2026, 100683, ISSN 2590-0374.
+https://doi.org/10.1016/j.rinam.2026.100683
+
 
 The model described in the paper has been implemented within the spectral Galerkin framework Shenfun (https://github.com/spectralDNS/shenfun), version 4.1.1.
 
